@@ -4,66 +4,68 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sympy import sympify, symbols, lambdify
 
-# Page Config for a professional feel
+# --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="RK4 Numerical Solver",
+    page_title="Numerical Methods | RK4 Solver",
     page_icon="🔬",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    layout="wide"
 )
 
-# Custom CSS for modern styling
+# --- MODERN STYLING ---
 st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7f9;
-    }
-    .stButton>button {
-        width: 100%;
-        border-radius: 5px;
-        height: 3em;
-        background-color: #007bff;
-        color: white;
-    }
-    .result-card {
-        background-color: white;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    }
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🔬 Runge-Kutta 4th Order Implementation")
-st.markdown("---")
-
-# Sidebar - Modernized with better grouping
+# --- SIDEBAR & INSTRUCTIONS ---
 with st.sidebar:
-    st.image("https://img.icons8.com/fluency/96/000000/mathematics.png", width=80)
-    st.header("Configuration")
+    st.title("⚙️ Configuration")
+    st.markdown("---")
     
-    with st.expander("Equation Settings", expanded=True):
-        eq_input = st.text_input("dy/dx = f(x, y)", "x + y", help="Use standard math notation like x**2, sin(x), etc.")
-        h = st.number_input("Step Size (h)", value=0.1, step=0.01, format="%.3f")
+    with st.expander("📝 Input Instructions", expanded=True):
+        st.info("""
+        **How to enter equations:**
+        - **Power:** `x^2` or `x**2`
+        - **Product:** `2*x*y`
+        - **Functions:** `sin(x)`, `exp(x)`, `sqrt(x)`
+        - **Variables:** Use only `x` and `y`.
+        """)
+
+    eq_input = st.text_input("Enter dy/dx = f(x, y)", "x + y^2")
     
-    with st.expander("Initial & Boundary Conditions", expanded=True):
-        x0 = st.number_input("Initial x₀", value=0.0)
-        y0 = st.number_input("Initial y₀", value=1.0)
-        xn = st.number_input("Target xₙ", value=2.0)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        x0 = st.number_input("x₀ (Initial)", value=0.0)
+        y0 = st.number_input("y₀ (Initial)", value=1.0)
+    with col_b:
+        xn = st.number_input("xₙ (Target)", value=1.0)
+        h = st.number_input("Step Size (h)", value=0.1, format="%.3f")
 
-    solve_btn = st.button("Calculate Solution")
+    solve_btn = st.button("🚀 Run Simulation")
 
-def rk4_engine(equation_str, x0, y0, xn, h):
+# --- RK4 ENGINE ---
+def run_rk4(equation_str, x0, y0, xn, h):
+    # Standardize notation (x^2 -> x**2)
+    cleaned_eq = equation_str.replace('^', '**')
     x, y = symbols('x y')
+    
     try:
-        expr = sympify(equation_str)
+        expr = sympify(cleaned_eq)
+        # Check for invalid variables
+        invalid_vars = [str(v) for v in expr.free_symbols if str(v) not in ['x', 'y']]
+        if invalid_vars:
+            return None, f"Invalid variables: {', '.join(invalid_vars)}"
+            
         f = lambdify((x, y), expr, "numpy")
     except Exception as e:
-        return None, f"Expression Error: {e}"
+        return None, f"Equation Error: {e}"
 
     x_vals, y_vals = [x0], [y0]
     curr_x, curr_y = x0, y0
-    steps = int((xn - x0) / h)
+    steps = int(abs(xn - x0) / h)
 
     for _ in range(steps):
         k1 = f(curr_x, curr_y)
@@ -77,42 +79,44 @@ def rk4_engine(equation_str, x0, y0, xn, h):
         x_vals.append(curr_x)
         y_vals.append(curr_y)
         
-    return pd.DataFrame({"x": x_vals, "y": y_vals}), None
+    return pd.DataFrame({"Step": range(len(x_vals)), "x": x_vals, "y": y_vals}), None
+
+# --- MAIN UI LOGIC ---
+st.title("🔢 Fourth-Order Runge-Kutta Method")
+st.caption("Numerical Solution of Ordinary Differential Equations")
 
 if solve_btn:
-    data, error = rk4_engine(eq_input, x0, y0, xn, h)
-    
-    if error:
-        st.error(error)
-    else:
-        # Modern Metric Display
-        col_m1, col_m2, col_m3 = st.columns(3)
-        col_m1.metric("Final x", f"{data['x'].iloc[-1]:.2f}")
-        col_m2.metric("Final y (Result)", f"{data['y'].iloc[-1]:.4f}")
-        col_m3.metric("Steps Taken", len(data)-1)
-
-        st.markdown("### Visual Analysis")
+    with st.spinner('Calculating...'):
+        df, error = run_rk4(eq_input, x0, y0, xn, h)
         
-        col_left, col_right = st.columns([1, 2])
-        
-        with col_left:
-            st.write("#### Data Table")
-            st.dataframe(data.style.highlight_max(axis=0), use_container_width=True, height=400)
-            
-        with col_right:
-            # Modern Plotting with Matplotlib
-            fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(data['x'], data['y'], color='#007bff', linewidth=2, label='RK4 Approximation')
-            ax.scatter(data['x'], data['y'], color='#ff7f0e', s=30)
-            
-            ax.set_title(f"Solution for dy/dx = {eq_input}", fontsize=14, fontweight='bold')
-            ax.set_xlabel("x (Independent Variable)")
-            ax.set_ylabel("y (Solution)")
-            ax.grid(True, linestyle='--', alpha=0.6)
-            ax.legend()
-            
-            st.pyplot(fig)
+        if error:
+            st.error(error)
+        else:
+            # Metrics display
+            m1, m2, m3 = st.columns(3)
+            m1.metric("Start Point", f"({x0}, {y0})")
+            m2.metric("Final Result (y)", f"{df['y'].iloc[-1]:.6f}")
+            m3.metric("Total Iterations", len(df)-1)
 
-        # Download option for project reports
-        csv = data.to_csv(index=False).encode('utf-8')
-        st.download_button("Download Results as CSV", data=csv, file_name="rk4_results.csv", mime="text/csv")
+            st.markdown("---")
+            
+            # Layout for Table and Graph
+            tab_col, plot_col = st.columns([1, 2])
+            
+            with tab_col:
+                st.subheader("📊 Iteration Table")
+                st.dataframe(df.set_index('Step'), use_container_width=True)
+                
+            with plot_col:
+                st.subheader("📈 Visual Solution")
+                fig, ax = plt.subplots(figsize=(10, 5))
+                ax.plot(df['x'], df['y'], color='#1E88E5', linewidth=2, label='RK4 Path')
+                ax.scatter(df['x'], df['y'], color='#D81B60', s=25)
+                ax.set_title(f"Numerical Integration for f(x,y) = {eq_input}")
+                ax.set_xlabel("x")
+                ax.set_ylabel("y")
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+                st.pyplot(fig)
+else:
+    st.write("👈 Configure the parameters in the sidebar and click 'Run Simulation' to begin.")
